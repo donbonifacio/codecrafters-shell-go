@@ -49,10 +49,25 @@ var commands = map[string]Command{
 		Name: "pwd",
 		Fn:   pwd,
 	},
+	"cd": {
+		Name: "cd",
+		Fn:   changeDirectory,
+	},
 	"": {
 		Name: "unknown command",
 		Fn:   unknownCommand,
 	},
+}
+
+func changeDirectory(input *CommandArgs) error {
+	newDir := input.Args[1]
+	if _, err := os.Stat(newDir); err != nil {
+		fmt.Fprintf(os.Stdout, "cd: %v: No such file or directory\n", newDir)
+		return nil
+	}
+	os.Chdir(newDir)
+	input.Env["PWD"] = newDir
+	return nil
 }
 
 func echo(input *CommandArgs) error {
@@ -134,6 +149,18 @@ func unknownCommand(input *CommandArgs) error {
 }
 
 func main() {
+	env := map[string]string{}
+
+	path := strings.Split(os.Getenv("PATH"), ":")
+	rawPath := os.Getenv("PATH")
+	env["PATH"] = rawPath
+
+	startingDir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	env["PWD"] = startingDir
+
 	for true {
 		fmt.Fprint(os.Stdout, "$ ")
 
@@ -148,23 +175,13 @@ func main() {
 		}
 
 		input := CommandArgs{
-			Cmds: commands,
-			Raw:  raw,
-			Args: strings.Split(raw, " "),
+			Cmds:        commands,
+			Raw:         raw,
+			Args:        strings.Split(raw, " "),
+			Path:        path,
+			StartingDir: startingDir,
+			Env:         env,
 		}
-
-		path := strings.Split(os.Getenv("PATH"), ":")
-		input.Path = path
-		input.Env = map[string]string{
-			"PATH": os.Getenv("PATH"),
-		}
-
-		wd, err := os.Getwd()
-		if err != nil {
-			panic(err)
-		}
-		input.StartingDir = wd
-		input.Env["PWD"] = wd
 
 		cmd := commands[input.Args[0]]
 		if cmd.Fn != nil {
