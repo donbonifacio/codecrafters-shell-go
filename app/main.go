@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -18,6 +19,7 @@ type CommandArgs struct {
 	Args []string
 	Path []string
 	Env  map[string]string
+	Exe  string
 }
 
 type Command struct {
@@ -37,6 +39,10 @@ var commands = map[string]Command{
 	"type": {
 		Name: "type",
 		Fn:   typeFn,
+	},
+	"exec": {
+		Name: "exec",
+		Fn:   execute,
 	},
 	"": {
 		Name: "unknown command",
@@ -61,7 +67,10 @@ func echo(input *CommandArgs) error {
 }
 
 func typeFn(input *CommandArgs) error {
-	target := input.Args[1]
+	target := input.Args[0]
+	if target == "type" {
+		target = input.Args[1]
+	}
 
 	if _, ok := input.Cmds[target]; ok {
 		fmt.Fprintf(os.Stdout, "%v is a shell builtin\n", target)
@@ -71,7 +80,10 @@ func typeFn(input *CommandArgs) error {
 	for _, path := range input.Path {
 		filename := fmt.Sprintf("%v/%v", path, target)
 		if _, err := os.Stat(filename); err == nil {
-			fmt.Fprintf(os.Stdout, "%v is %v\n", target, filename)
+			input.Exe = filename
+			if input.Args[0] == "type" {
+				fmt.Fprintf(os.Stdout, "%v is %v\n", target, filename)
+			}
 			return nil
 		}
 	}
@@ -89,6 +101,24 @@ func exit(input *CommandArgs) error {
 		os.Exit(num)
 	}
 	os.Exit(0)
+	return nil
+}
+
+func execute(input *CommandArgs) error {
+	exe := input.Exe
+	if exe == "" {
+		exe = input.Args[0]
+	}
+
+	cmd := exec.Command(input.Exe)
+	if len(input.Args) > 1 {
+		cmd.Args = input.Args[1:]
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -127,7 +157,15 @@ func main() {
 				panic(err)
 			}
 		} else {
-			unknownCommand(&input)
+			// check if it's an executable refercenced in the path
+			if err := commands["type"].Fn(&input); err != nil {
+				panic(err)
+			}
+			if input.Exe != "" {
+				execute(&input)
+			} else {
+				unknownCommand(&input)
+			}
 		}
 	}
 
