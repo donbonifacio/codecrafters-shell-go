@@ -66,6 +66,10 @@ func processPath(input *CommandArgs, path string) (string, error) {
 		return newPath, nil
 	}
 
+	if strings.HasPrefix(newPath, "~") {
+		return strings.Replace(newPath, "~", input.Env["HOME"], -1), nil
+	}
+
 	if strings.HasPrefix(newPath, "./") {
 		return strings.Replace(newPath, ".", input.Env["PWD"], -1), nil
 	}
@@ -93,6 +97,10 @@ func processPath(input *CommandArgs, path string) (string, error) {
 }
 
 func changeDirectory(input *CommandArgs) error {
+	if len(input.Args) <= 1 {
+		return nil
+	}
+
 	newDir, err := processPath(input, input.Args[1])
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "cd: %v: No such file or directory\n", newDir)
@@ -198,6 +206,8 @@ func main() {
 		panic(err)
 	}
 	env["PWD"] = startingDir
+
+	env["HOME"] = os.Getenv("HOME")
 
 	for true {
 		fmt.Fprint(os.Stdout, "$ ")
