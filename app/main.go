@@ -106,13 +106,9 @@ func exit(input *CommandArgs) error {
 
 func execute(input *CommandArgs) error {
 	exe := input.Exe
-	if exe == "" {
-		exe = input.Args[0]
-	}
-
-	cmd := exec.Command(input.Exe)
+	cmd := exec.Command(exe)
 	if len(input.Args) > 1 {
-		cmd.Args = input.Args[1:]
+		cmd.Args = input.Args
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -138,6 +134,10 @@ func main() {
 			panic(err)
 		}
 		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+
 		input := CommandArgs{
 			Cmds: commands,
 			Raw:  raw,
@@ -163,8 +163,6 @@ func main() {
 			}
 			if input.Exe != "" {
 				execute(&input)
-			} else {
-				unknownCommand(&input)
 			}
 		}
 	}
