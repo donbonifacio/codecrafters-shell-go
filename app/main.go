@@ -25,11 +25,16 @@ func main() {
 		args := strings.Split(input, " ")
 		if len(input) >= 0 {
 			if args[0] == "exit" {
-				num, err := strconv.Atoi(args[1])
-				if err != nil {
-					panic(err)
+				if len(args) > 1 {
+					num, err := strconv.Atoi(args[1])
+					if err != nil {
+						panic(err)
+					}
+					os.Exit(num)
 				}
-				os.Exit(num)
+				os.Exit(0)
+			} else if args[0] == "echo" {
+				fmt.Fprintln(os.Stdout, strings.Replace(input, args[0]+" ", "", -1))
 			} else {
 				fmt.Fprintf(os.Stdout, "%v: command not found\n", input)
 			}
