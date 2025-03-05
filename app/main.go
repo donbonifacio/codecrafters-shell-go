@@ -16,6 +16,8 @@ type CommandArgs struct {
 	Cmds map[string]Command
 	Raw  string
 	Args []string
+	Path []string
+	Env  map[string]string
 }
 
 type Command struct {
@@ -43,16 +45,37 @@ var commands = map[string]Command{
 }
 
 func echo(input *CommandArgs) error {
-	fmt.Fprintln(os.Stdout, strings.Replace(input.Raw, input.Args[0]+" ", "", -1))
+	arg := strings.Replace(input.Raw, input.Args[0]+" ", "", -1)
+	if arg[0] == '$' {
+		variable := arg[1:]
+		if val, ok := input.Env[variable]; ok {
+			fmt.Fprintln(os.Stdout, val)
+			return nil
+		} else {
+			fmt.Fprintln(os.Stdout, "")
+			return nil
+		}
+	}
+	fmt.Fprintln(os.Stdout, arg)
 	return nil
 }
 
 func typeFn(input *CommandArgs) error {
 	target := input.Args[1]
+
 	if _, ok := input.Cmds[target]; ok {
 		fmt.Fprintf(os.Stdout, "%v is a shell builtin\n", target)
 		return nil
 	}
+
+	for _, path := range input.Path {
+		filename := fmt.Sprintf("%v/%v", path, target)
+		if _, err := os.Stat(filename); err == nil {
+			fmt.Fprintf(os.Stdout, "%v is %v\n", target, filename)
+			return nil
+		}
+	}
+
 	fmt.Fprintf(os.Stdout, "%v: not found\n", target)
 	return nil
 }
@@ -89,6 +112,12 @@ func main() {
 			Cmds: commands,
 			Raw:  raw,
 			Args: strings.Split(raw, " "),
+		}
+
+		path := strings.Split(os.Getenv("PATH"), ":")
+		input.Path = path
+		input.Env = map[string]string{
+			"PATH": os.Getenv("PATH"),
 		}
 
 		cmd := commands[input.Args[0]]
