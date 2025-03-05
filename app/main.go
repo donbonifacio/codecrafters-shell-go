@@ -13,13 +13,14 @@ import (
 var _ = fmt.Fprint
 
 type CommandArgs struct {
-	Cmd  *Command
-	Cmds map[string]Command
-	Raw  string
-	Args []string
-	Path []string
-	Env  map[string]string
-	Exe  string
+	Cmd         *Command
+	Cmds        map[string]Command
+	Raw         string
+	Args        []string
+	Path        []string
+	Env         map[string]string
+	Exe         string
+	StartingDir string
 }
 
 type Command struct {
@@ -43,6 +44,10 @@ var commands = map[string]Command{
 	"exec": {
 		Name: "exec",
 		Fn:   execute,
+	},
+	"pwd": {
+		Name: "pwd",
+		Fn:   pwd,
 	},
 	"": {
 		Name: "unknown command",
@@ -92,6 +97,11 @@ func typeFn(input *CommandArgs) error {
 	return nil
 }
 
+func pwd(input *CommandArgs) error {
+	fmt.Fprintf(os.Stdout, "%v\n", input.Env["PWD"])
+	return nil
+}
+
 func exit(input *CommandArgs) error {
 	if len(input.Args) > 1 {
 		num, err := strconv.Atoi(input.Args[1])
@@ -124,7 +134,6 @@ func unknownCommand(input *CommandArgs) error {
 }
 
 func main() {
-
 	for true {
 		fmt.Fprint(os.Stdout, "$ ")
 
@@ -149,6 +158,13 @@ func main() {
 		input.Env = map[string]string{
 			"PATH": os.Getenv("PATH"),
 		}
+
+		wd, err := os.Getwd()
+		if err != nil {
+			panic(err)
+		}
+		input.StartingDir = wd
+		input.Env["PWD"] = wd
 
 		cmd := commands[input.Args[0]]
 		if cmd.Fn != nil {
