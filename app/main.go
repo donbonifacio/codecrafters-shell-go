@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -21,7 +22,21 @@ func main() {
 			panic(err)
 		}
 		input = strings.TrimSpace(input)
-		fmt.Fprintf(os.Stdout, "%v: command not found\n", input)
+		args := strings.Split(input, " ")
+		if len(input) >= 0 {
+			if args[0] == "exit" {
+				num, err := strconv.Atoi(args[1])
+				if err != nil {
+					panic(err)
+				}
+				os.Exit(num)
+			} else {
+				fmt.Fprintf(os.Stdout, "%v: command not found\n", input)
+			}
+		} else {
+			fmt.Fprintf(os.Stdout, "%v: command not found\n", input)
+
+		}
 	}
 
 }
