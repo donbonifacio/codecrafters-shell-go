@@ -59,8 +59,46 @@ var commands = map[string]Command{
 	},
 }
 
+func processPath(input *CommandArgs, path string) (string, error) {
+	newPath := path
+
+	if strings.HasPrefix(newPath, "/") {
+		return newPath, nil
+	}
+
+	if strings.HasPrefix(newPath, "./") {
+		return strings.Replace(newPath, ".", input.Env["PWD"], -1), nil
+	}
+
+	pwd := input.Env["PWD"]
+	if strings.HasSuffix(pwd, "/") {
+		pwd = pwd[:len(pwd)-1]
+	}
+	//fmt.Printf("pwd: %v\n", pwd)
+	for strings.HasPrefix(newPath, "..") {
+		if pwd == "" { // we want to go back, but nothing to go back to
+			return path, fmt.Errorf("invalid path")
+		}
+		parts := strings.Split(pwd, "/")
+		pwd = strings.Join(parts[:len(parts)-1], "/")
+		tentativePath := strings.Replace(newPath, "../", "", 1)
+		if tentativePath == newPath {
+			newPath = strings.Replace(newPath, "..", "", 1)
+		} else {
+			newPath = tentativePath
+		}
+		//fmt.Printf("pwd: %v newPath: %v\n", pwd, newPath)
+	}
+	return strings.TrimSuffix(fmt.Sprintf("%v/%v", pwd, newPath), "/"), nil
+}
+
 func changeDirectory(input *CommandArgs) error {
-	newDir := input.Args[1]
+	newDir, err := processPath(input, input.Args[1])
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "cd: %v: No such file or directory\n", newDir)
+		return nil
+	}
+
 	if _, err := os.Stat(newDir); err != nil {
 		fmt.Fprintf(os.Stdout, "cd: %v: No such file or directory\n", newDir)
 		return nil
