@@ -53,6 +53,16 @@ func TestEcho(t *testing.T) {
 			input:    "echo 'a b' 'c d'",
 			expected: "a b c d",
 		},
+		{
+			name:     "double quotes",
+			input:    "echo \"a b\"",
+			expected: "a b",
+		},
+		{
+			name:     "double quotes with inner quote",
+			input:    "echo \"bar\"  \"shell's\"  \"foo\"",
+			expected: "bar shell's foo",
+		},
 	}
 
 	for _, testData := range tests {

@@ -214,10 +214,27 @@ func unknownCommand(input *CommandArgs) error {
 }
 
 type Part struct {
-	Body      string
-	IsCommand bool
-	InQuotes  bool
-	Separator bool
+	Body           string
+	IsCommand      bool
+	InQuotes       bool
+	InDoubleQuotes bool
+	Separator      bool
+}
+
+func (p Part) String() string {
+	if p.IsCommand {
+		return fmt.Sprintf("Command(%v)", p.Body)
+	}
+	if p.InQuotes {
+		return fmt.Sprintf("SingleQuotes(%v)", p.Body)
+	}
+	if p.InDoubleQuotes {
+		return fmt.Sprintf("DoubleQuotes(%v)", p.Body)
+	}
+	if p.Separator {
+		return "SEPARATOR"
+	}
+	return fmt.Sprintf("Part(%v)", p.Body)
 }
 
 func processParts(raw string) []Part {
@@ -225,14 +242,25 @@ func processParts(raw string) []Part {
 	token := ""
 	parts := []Part{}
 	in_quotes := false
+	inDoubleQuotes := false
 	for _, c := range chars {
 		char := string(c)
-		if char == "'" {
+		if char == "'" && !inDoubleQuotes {
 			if in_quotes == false {
 				in_quotes = true
 			} else {
 				in_quotes = false
 				parts = append(parts, Part{Body: token, InQuotes: true})
+				token = ""
+			}
+			continue
+		}
+		if char == "\"" && !in_quotes {
+			if inDoubleQuotes == false {
+				inDoubleQuotes = true
+			} else {
+				inDoubleQuotes = false
+				parts = append(parts, Part{Body: token, InDoubleQuotes: true})
 				token = ""
 			}
 			continue
