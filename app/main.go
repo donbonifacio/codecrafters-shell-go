@@ -17,6 +17,7 @@ type CommandArgs struct {
 	Cmds        map[string]Command
 	Raw         string
 	Args        []string
+	Parts       []Part
 	Path        []string
 	Env         map[string]string
 	Exe         string
@@ -117,18 +118,22 @@ func changeDirectory(input *CommandArgs) error {
 }
 
 func echo(input *CommandArgs) error {
-	arg := strings.Replace(input.Raw, input.Args[0]+" ", "", -1)
-	if arg[0] == '$' {
-		variable := arg[1:]
-		if val, ok := input.Env[variable]; ok {
-			fmt.Fprintln(os.Stdout, val)
-			return nil
-		} else {
-			fmt.Fprintln(os.Stdout, "")
-			return nil
+	if len(input.Parts) <= 1 {
+		fmt.Fprintln(os.Stdout, "")
+		return nil
+	}
+	for i, part := range input.Parts[1:] {
+		fmt.Fprint(os.Stdout, part.Body)
+
+		var nextPart *Part
+		if i+2 < len(input.Parts) {
+			nextPart = &input.Parts[i+2]
+		}
+		if nextPart != nil && !nextPart.InQuotes && !part.Separator {
+			fmt.Fprint(os.Stdout, " ")
 		}
 	}
-	fmt.Fprintln(os.Stdout, arg)
+	fmt.Fprintln(os.Stdout, "")
 	return nil
 }
 
@@ -175,11 +180,25 @@ func exit(input *CommandArgs) error {
 	return nil
 }
 
+func buildArgsFromParts(input *CommandArgs) []string {
+	var args []string
+	for _, part := range input.Parts {
+		if part.InQuotes {
+			args = append(args, fmt.Sprintf("%s", part.Body))
+		} else if part.Separator {
+			continue
+		} else {
+			args = append(args, part.Body)
+		}
+	}
+	return args
+}
+
 func execute(input *CommandArgs) error {
 	exe := input.Exe
 	cmd := exec.Command(exe)
 	if len(input.Args) > 1 {
-		cmd.Args = input.Args
+		cmd.Args = buildArgsFromParts(input)
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -192,6 +211,58 @@ func execute(input *CommandArgs) error {
 func unknownCommand(input *CommandArgs) error {
 	fmt.Fprintf(os.Stdout, "%v: command not found\n", input.Raw)
 	return nil
+}
+
+type Part struct {
+	Body      string
+	IsCommand bool
+	InQuotes  bool
+	Separator bool
+}
+
+func processParts(raw string) []Part {
+	chars := []rune(raw)
+	token := ""
+	parts := []Part{}
+	in_quotes := false
+	for _, c := range chars {
+		char := string(c)
+		if char == "'" {
+			if in_quotes == false {
+				in_quotes = true
+			} else {
+				in_quotes = false
+				parts = append(parts, Part{Body: token, InQuotes: true})
+				token = ""
+			}
+			continue
+		}
+		if char == " " {
+			if in_quotes == true {
+				token += string(char)
+			} else {
+				if strings.TrimSpace(token) == "" {
+					var lastPart *Part
+					if len(parts) > 0 {
+						lastPart = &parts[len(parts)-1]
+					}
+					if lastPart == nil || !lastPart.Separator {
+						parts = append(parts, Part{Separator: true})
+					}
+				} else {
+					parts = append(parts, Part{Body: token, IsCommand: len(parts) == 0})
+				}
+				token = ""
+			}
+			continue
+		}
+		token += char
+	}
+	if len(token) > 0 && len(parts) > 0 {
+		parts = append(parts, Part{Body: token})
+	}
+
+	return parts
 }
 
 func main() {
@@ -226,6 +297,7 @@ func main() {
 			Cmds:        commands,
 			Raw:         raw,
 			Args:        strings.Split(raw, " "),
+			Parts:       processParts(raw),
 			Path:        path,
 			StartingDir: startingDir,
 			Env:         env,
