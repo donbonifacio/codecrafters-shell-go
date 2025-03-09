@@ -63,6 +63,11 @@ func TestEcho(t *testing.T) {
 			input:    "echo \"bar\"  \"shell's\"  \"foo\"",
 			expected: "bar shell's foo",
 		},
+		{
+			name:     "double quotes with spacing",
+			input:    "echo \"world  hello\"  \"example\"\"script\"",
+			expected: "world  hello examplescript",
+		},
 	}
 
 	for _, testData := range tests {

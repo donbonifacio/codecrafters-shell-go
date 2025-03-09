@@ -129,7 +129,7 @@ func echo(input *CommandArgs) error {
 		if i+2 < len(input.Parts) {
 			nextPart = &input.Parts[i+2]
 		}
-		if nextPart != nil && !nextPart.InQuotes && !part.Separator {
+		if nextPart != nil && !nextPart.InQuotes && !nextPart.InDoubleQuotes && !part.Separator {
 			fmt.Fprint(os.Stdout, " ")
 		}
 	}
@@ -223,16 +223,16 @@ type Part struct {
 
 func (p Part) String() string {
 	if p.IsCommand {
-		return fmt.Sprintf("Command(%v)", p.Body)
+		return fmt.Sprintf("Cmd(%v)", p.Body)
 	}
 	if p.InQuotes {
-		return fmt.Sprintf("SingleQuotes(%v)", p.Body)
+		return fmt.Sprintf("'(%v)", p.Body)
 	}
 	if p.InDoubleQuotes {
-		return fmt.Sprintf("DoubleQuotes(%v)", p.Body)
+		return fmt.Sprintf("\"(%v)", p.Body)
 	}
 	if p.Separator {
-		return "SEPARATOR"
+		return "SEP"
 	}
 	return fmt.Sprintf("Part(%v)", p.Body)
 }
@@ -266,7 +266,7 @@ func processParts(raw string) []Part {
 			continue
 		}
 		if char == " " {
-			if in_quotes == true {
+			if in_quotes == true || inDoubleQuotes == true {
 				token += string(char)
 			} else {
 				if strings.TrimSpace(token) == "" {
