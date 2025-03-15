@@ -78,6 +78,11 @@ func TestEcho(t *testing.T) {
 			input:    "echo world\\ \\ \\ \\ \\ \\ script",
 			expected: "world      script",
 		},
+		{
+			name:     "escape backslash no single quotes",
+			input:    "echo 'shell\\\nscript'",
+			expected: "shell\\\nscript",
+		},
 	}
 
 	for _, testData := range tests {
