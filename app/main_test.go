@@ -68,6 +68,16 @@ func TestEcho(t *testing.T) {
 			input:    "echo \"world  hello\"  \"example\"\"script\"",
 			expected: "world  hello examplescript",
 		},
+		{
+			name:     "escape backslash",
+			input:    "echo \"before\\   after\"",
+			expected: "before\\   after",
+		},
+		{
+			name:     "escape backslash no quotes",
+			input:    "echo world\\ \\ \\ \\ \\ \\ script",
+			expected: "world      script",
+		},
 	}
 
 	for _, testData := range tests {

@@ -125,11 +125,15 @@ func echo(input *CommandArgs) error {
 	for i, part := range input.Parts[1:] {
 		fmt.Fprint(os.Stdout, part.Body)
 
+		if part.Escaped {
+			continue
+		}
+
 		var nextPart *Part
 		if i+2 < len(input.Parts) {
 			nextPart = &input.Parts[i+2]
 		}
-		if nextPart != nil && !nextPart.InQuotes && !nextPart.InDoubleQuotes && !part.Separator {
+		if nextPart != nil && !nextPart.Escaped && !nextPart.InQuotes && !nextPart.InDoubleQuotes && !part.Separator {
 			fmt.Fprint(os.Stdout, " ")
 		}
 	}
@@ -219,6 +223,7 @@ type Part struct {
 	InQuotes       bool
 	InDoubleQuotes bool
 	Separator      bool
+	Escaped        bool
 }
 
 func (p Part) String() string {
@@ -230,6 +235,9 @@ func (p Part) String() string {
 	}
 	if p.InDoubleQuotes {
 		return fmt.Sprintf("\"(%v)", p.Body)
+	}
+	if p.Escaped {
+		return fmt.Sprintf("\\(%v)", p.Body)
 	}
 	if p.Separator {
 		return "SEP"
@@ -243,8 +251,23 @@ func processParts(raw string) []Part {
 	parts := []Part{}
 	in_quotes := false
 	inDoubleQuotes := false
+	toEscape := false
 	for _, c := range chars {
 		char := string(c)
+		if char == "\\" && !in_quotes && !inDoubleQuotes {
+			if len(token) > 0 {
+				parts = append(parts, Part{Body: token})
+				token = ""
+			}
+			toEscape = true
+			continue
+		}
+		if toEscape {
+			parts = append(parts, Part{Body: char, Escaped: true})
+			toEscape = false
+			continue
+		}
+
 		if char == "'" && !inDoubleQuotes {
 			if in_quotes == false {
 				in_quotes = true
