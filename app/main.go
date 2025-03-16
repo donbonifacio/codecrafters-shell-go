@@ -258,14 +258,14 @@ func processParts(raw string) []Part {
 	toEscape := false
 	for _, c := range chars {
 		char := string(c)
-		if char == "\\" {
+		if char == "\\" && !toEscape {
 			toEscape = true
 			continue
 		}
 		if toEscape {
 			toEscape = false
 			if in_quotes || (inDoubleQuotes) {
-				if inDoubleQuotes && strings.Contains("$\\\"", char) {
+				if inDoubleQuotes && strings.Contains("$\"\\", char) {
 					token += char
 				} else {
 					token += "\\" + char
