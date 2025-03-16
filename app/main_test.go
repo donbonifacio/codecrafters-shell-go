@@ -83,6 +83,18 @@ func TestEcho(t *testing.T) {
 			input:    "echo 'shell\\\nscript'",
 			expected: "shell\\\nscript",
 		},
+		{
+			name:     "backslash behaviour inside double quotes",
+			input:    "echo \"hello'script'\\n'world\"",
+			expected: "hello'script'\\n'world",
+		},
+		{
+			name:     "backslash behaviour inside double quotes 2",
+			input:    "echo \"hello\\\"insidequotes\"script\\\"",
+			expected: "hello\"insidequotesscript\"",
+		},
+		/*
+		 */
 	}
 
 	for _, testData := range tests {

@@ -129,11 +129,15 @@ func echo(input *CommandArgs) error {
 			continue
 		}
 
+		if part.InQuotes || part.InDoubleQuotes || part.Separator {
+			continue
+		}
+
 		var nextPart *Part
 		if i+2 < len(input.Parts) {
 			nextPart = &input.Parts[i+2]
 		}
-		if nextPart != nil && !nextPart.Escaped && !nextPart.InQuotes && !nextPart.InDoubleQuotes && !part.Separator {
+		if nextPart != nil && !nextPart.Escaped && !nextPart.InQuotes && !nextPart.InDoubleQuotes && !nextPart.Separator {
 			fmt.Fprint(os.Stdout, " ")
 		}
 	}
@@ -254,17 +258,25 @@ func processParts(raw string) []Part {
 	toEscape := false
 	for _, c := range chars {
 		char := string(c)
-		if char == "\\" && !in_quotes && !inDoubleQuotes {
-			if len(token) > 0 {
-				parts = append(parts, Part{Body: token})
-				token = ""
-			}
+		if char == "\\" {
 			toEscape = true
 			continue
 		}
 		if toEscape {
-			parts = append(parts, Part{Body: char, Escaped: true})
 			toEscape = false
+			if in_quotes || (inDoubleQuotes) {
+				if inDoubleQuotes && strings.Contains("$\\\"", char) {
+					token += char
+				} else {
+					token += "\\" + char
+				}
+				continue
+			}
+			if len(token) > 0 {
+				parts = append(parts, Part{Body: token})
+				token = ""
+			}
+			parts = append(parts, Part{Body: char, Escaped: true})
 			continue
 		}
 
@@ -298,7 +310,7 @@ func processParts(raw string) []Part {
 						lastPart = &parts[len(parts)-1]
 					}
 					if lastPart == nil || !lastPart.Separator {
-						parts = append(parts, Part{Separator: true})
+						parts = append(parts, Part{Separator: true, Body: " "})
 					}
 				} else {
 					parts = append(parts, Part{Body: token, IsCommand: len(parts) == 0})
