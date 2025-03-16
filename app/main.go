@@ -146,7 +146,7 @@ func echo(input *CommandArgs) error {
 }
 
 func typeFn(input *CommandArgs) error {
-	target := input.Args[0]
+	target := input.Parts[0].Body
 	if target == "type" {
 		target = input.Args[1]
 	}
@@ -313,7 +313,7 @@ func processParts(raw string) []Part {
 						parts = append(parts, Part{Separator: true, Body: " "})
 					}
 				} else {
-					parts = append(parts, Part{Body: token, IsCommand: len(parts) == 0})
+					parts = append(parts, Part{Body: token})
 				}
 				token = ""
 			}
@@ -321,10 +321,13 @@ func processParts(raw string) []Part {
 		}
 		token += char
 	}
-	if len(token) > 0 && len(parts) > 0 {
+	if len(token) > 0 {
 		parts = append(parts, Part{Body: token})
 	}
 
+	if len(parts) > 0 {
+		parts[0].IsCommand = true
+	}
 	return parts
 }
 
@@ -366,14 +369,14 @@ func main() {
 			Env:         env,
 		}
 
-		cmd := commands[input.Args[0]]
+		cmd := commands[input.Parts[0].Body]
 		if cmd.Fn != nil {
 			input.Cmd = &cmd
 			if err := cmd.Fn(&input); err != nil {
 				panic(err)
 			}
 		} else {
-			// check if it's an executable refercenced in the path
+			// check if it's an executable referenced in the path
 			if err := commands["type"].Fn(&input); err != nil {
 				panic(err)
 			}

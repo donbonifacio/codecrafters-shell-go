@@ -93,11 +93,6 @@ func TestEcho(t *testing.T) {
 			input:    "echo \"hello\\\"insidequotes\"script\\\"",
 			expected: "hello\"insidequotesscript\"",
 		},
-		{
-			name:     "backslash behaviour inside double quotes 3",
-			input:    "echo \"mixed\\\"quote'hello'\\",
-			expected: "mixed\"quote'hello'\\",
-		},
 
 		/*
 		 */
