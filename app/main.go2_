@@ -106,7 +106,6 @@ func changeDirectory(input *CommandArgs) error {
 		return nil
 	}
 
-	//fmt.Println("_", input.Args[1], "_")
 	newDir, err := processPath(input, input.Args[1])
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "cd: %v: No such file or directory\n", newDir)
@@ -215,9 +214,11 @@ func execute(input *CommandArgs) error {
 	}
 	cmd.Stdout = input.Stdout
 	cmd.Stderr = input.Stderr
+
 	if err := cmd.Run(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -296,11 +297,12 @@ func processParts(input *CommandArgs) []Part {
 		if err != nil {
 			panic(err)
 		}
+
 		char := string(buf)
 		if char == "\t" {
 			// don't output
 		} else if char == "\r" {
-			//fmt.Printf("\n\r")
+			fmt.Printf("\n\r")
 			char = "\n"
 		} else {
 			fmt.Printf(char)
@@ -402,7 +404,6 @@ func processParts(input *CommandArgs) []Part {
 			}
 			continue
 		}
-
 		if char == "\n" {
 			break
 		}
@@ -415,9 +416,11 @@ func processParts(input *CommandArgs) []Part {
 	if len(parts) > 0 {
 		parts[0].IsCommand = true
 	}
-	input.Raw = strings.TrimSpace(rawCmd)
-	input.Args = strings.Split(input.Raw, " ")
+	input.Parts = parts
+	input.Raw = rawCmd
+	input.Args = strings.Split(rawCmd, " ")
 
+	fmt.Printf("\r")
 	return parts
 }
 
@@ -431,8 +434,7 @@ func buildCommandArgs(path []string, startingDir string, env map[string]string) 
 		Stderr:      os.Stderr,
 	}
 
-	input.Parts = processParts(&input)
-	fmt.Print("\r")
+	processParts(&input)
 
 	//fmt.Println(input.Parts)
 	newParts := []Part{}
@@ -478,9 +480,13 @@ func main() {
 	env["HOME"] = os.Getenv("HOME")
 
 	for true {
-		fmt.Fprint(os.Stdout, "$ ")
+		fmt.Fprint(os.Stdout, "\r$ ")
 
 		input := buildCommandArgs(path, startingDir, env)
+
+		if len(input.Parts) == 0 {
+			continue
+		}
 
 		cmd := commands[input.Parts[0].Body]
 		if cmd.Fn != nil {

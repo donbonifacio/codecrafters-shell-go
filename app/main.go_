@@ -1,14 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
-
-	"golang.org/x/term"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
@@ -106,7 +105,6 @@ func changeDirectory(input *CommandArgs) error {
 		return nil
 	}
 
-	//fmt.Println("_", input.Args[1], "_")
 	newDir, err := processPath(input, input.Args[1])
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "cd: %v: No such file or directory\n", newDir)
@@ -263,24 +261,8 @@ func (p Part) String() string {
 	return fmt.Sprintf("Part(%v)", p.Body)
 }
 
-func autoComplete(input *CommandArgs, token string) (bool, string, string) {
-	for key := range input.Cmds {
-		if strings.HasPrefix(key, token) {
-			return true, key, strings.TrimPrefix(key, token)
-		}
-	}
-	return false, "", ""
-}
-
-func processParts(input *CommandArgs) []Part {
-	fd := int(os.Stdin.Fd())
-	state, err := term.MakeRaw(fd)
-	if err != nil {
-		panic(err)
-	}
-	defer term.Restore(fd, state)
-
-	rawCmd := ""
+func processParts(raw string) []Part {
+	chars := []rune(raw)
 	token := ""
 	parts := []Part{}
 	in_quotes := false
@@ -290,35 +272,8 @@ func processParts(input *CommandArgs) []Part {
 	redirectId := "1"
 	appendRedirect := false
 
-	for {
-		buf := make([]byte, 1)
-		_, err = os.Stdin.Read(buf)
-		if err != nil {
-			panic(err)
-		}
-		char := string(buf)
-		if char == "\t" {
-			// don't output
-		} else if char == "\r" {
-			//fmt.Printf("\n\r")
-			char = "\n"
-		} else {
-			fmt.Printf(char)
-			rawCmd += char
-		}
-
-		if char == "\t" {
-			if len(parts) == 0 {
-				hasMatch, _, rem := autoComplete(input, token)
-				if hasMatch {
-					fmt.Printf("%v ", rem)
-					token += rem
-					rawCmd += rem + " "
-					char = " "
-				}
-			}
-		}
-
+	for _, c := range chars {
+		char := string(c)
 		if char == ">" && !in_quotes && !inDoubleQuotes && !toEscape {
 			if redirect {
 				appendRedirect = true
@@ -402,10 +357,6 @@ func processParts(input *CommandArgs) []Part {
 			}
 			continue
 		}
-
-		if char == "\n" {
-			break
-		}
 		token += char
 	}
 	if len(token) > 0 {
@@ -415,15 +366,13 @@ func processParts(input *CommandArgs) []Part {
 	if len(parts) > 0 {
 		parts[0].IsCommand = true
 	}
-	input.Raw = strings.TrimSpace(rawCmd)
-	input.Args = strings.Split(input.Raw, " ")
-
 	return parts
 }
 
-func buildCommandArgs(path []string, startingDir string, env map[string]string) *CommandArgs {
+func buildCommandArgs(raw string, path []string, startingDir string, env map[string]string) *CommandArgs {
 	input := CommandArgs{
 		Cmds:        commands,
+		Raw:         raw,
 		Path:        path,
 		StartingDir: startingDir,
 		Env:         env,
@@ -431,8 +380,9 @@ func buildCommandArgs(path []string, startingDir string, env map[string]string) 
 		Stderr:      os.Stderr,
 	}
 
-	input.Parts = processParts(&input)
-	fmt.Print("\r")
+	rawCmd := raw
+	input.Args = strings.Split(rawCmd, " ")
+	input.Parts = processParts(rawCmd)
 
 	//fmt.Println(input.Parts)
 	newParts := []Part{}
@@ -480,7 +430,17 @@ func main() {
 	for true {
 		fmt.Fprint(os.Stdout, "$ ")
 
-		input := buildCommandArgs(path, startingDir, env)
+		// Wait for user input
+		raw, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil {
+			panic(err)
+		}
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+
+		input := buildCommandArgs(raw, path, startingDir, env)
 
 		cmd := commands[input.Parts[0].Body]
 		if cmd.Fn != nil {
@@ -499,3 +459,4 @@ func main() {
 		}
 	}
 }
+
