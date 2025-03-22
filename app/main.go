@@ -269,6 +269,20 @@ func autoComplete(input *CommandArgs, token string) (bool, string, string) {
 			return true, key, strings.TrimPrefix(key, token)
 		}
 	}
+
+	for _, path := range input.Path {
+		if entries, err := os.ReadDir(path); err == nil {
+			for _, entry := range entries {
+				if entry.Type().IsRegular() {
+					info, err := entry.Info()
+					if err == nil && (info.Mode()&0111) != 0 && strings.HasPrefix(entry.Name(), token) {
+						return true, entry.Name(), strings.TrimPrefix(entry.Name(), token)
+					}
+				}
+			}
+		}
+	}
+
 	return false, "", ""
 }
 
