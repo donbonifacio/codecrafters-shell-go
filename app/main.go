@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -263,10 +264,12 @@ func (p Part) String() string {
 	return fmt.Sprintf("Part(%v)", p.Body)
 }
 
-func autoComplete(input *CommandArgs, token string) (bool, string, string) {
+func autoComplete(input *CommandArgs, token string) (bool, string, string, []string) {
+	matches := []string{}
 	for key := range input.Cmds {
 		if strings.HasPrefix(key, token) {
-			return true, key, strings.TrimPrefix(key, token)
+			matches = append(matches, key)
+			return true, key, strings.TrimPrefix(key, token), matches
 		}
 	}
 
@@ -276,14 +279,28 @@ func autoComplete(input *CommandArgs, token string) (bool, string, string) {
 				if entry.Type().IsRegular() {
 					info, err := entry.Info()
 					if err == nil && (info.Mode()&0111) != 0 && strings.HasPrefix(entry.Name(), token) {
-						return true, entry.Name(), strings.TrimPrefix(entry.Name(), token)
+						match_found := false
+						for _, match := range matches {
+							if match == entry.Name() {
+								match_found = true
+								break
+							}
+						}
+						if !match_found {
+							matches = append(matches, entry.Name())
+						}
 					}
 				}
 			}
 		}
 	}
 
-	return false, "", ""
+	if len(matches) == 1 {
+		return true, matches[0], strings.TrimPrefix(matches[0], token), matches
+	}
+
+	sort.Strings(matches)
+	return len(matches) > 0, "", "", matches
 }
 
 func processParts(input *CommandArgs) []Part {
@@ -303,6 +320,7 @@ func processParts(input *CommandArgs) []Part {
 	redirect := false
 	redirectId := "1"
 	appendRedirect := false
+	doubleTabAutoComplete := false
 
 	for {
 		buf := make([]byte, 1)
@@ -323,14 +341,25 @@ func processParts(input *CommandArgs) []Part {
 
 		if char == "\t" {
 			if len(parts) == 0 {
-				hasMatch, _, rem := autoComplete(input, token)
-				if hasMatch {
+				hasMatch, _, rem, options := autoComplete(input, token)
+				//fmt.Println("_", token, "_", hasMatch, options)
+				if hasMatch && len(options) == 1 {
 					fmt.Printf("%v ", rem)
 					token += rem
 					rawCmd += rem + " "
 					char = " "
+				} else if hasMatch && doubleTabAutoComplete {
+					fmt.Printf("\n\r")
+					for _, option := range options {
+						fmt.Printf("%v  ", option)
+					}
+					fmt.Printf("\n\r$ %v", token)
+					doubleTabAutoComplete = false
+					continue
 				} else {
+					doubleTabAutoComplete = true
 					fmt.Printf("\a")
+					continue
 				}
 			}
 		}
