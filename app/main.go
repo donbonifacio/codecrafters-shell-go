@@ -264,12 +264,12 @@ func (p Part) String() string {
 	return fmt.Sprintf("Part(%v)", p.Body)
 }
 
-func autoComplete(input *CommandArgs, token string) (bool, string, string, []string) {
+func autoComplete(input *CommandArgs, token string) (bool, string, string, []string, string) {
 	matches := []string{}
 	for key := range input.Cmds {
 		if strings.HasPrefix(key, token) {
 			matches = append(matches, key)
-			return true, key, strings.TrimPrefix(key, token), matches
+			return true, key, strings.TrimPrefix(key, token), matches, ""
 		}
 	}
 
@@ -296,11 +296,22 @@ func autoComplete(input *CommandArgs, token string) (bool, string, string, []str
 	}
 
 	if len(matches) == 1 {
-		return true, matches[0], strings.TrimPrefix(matches[0], token), matches
+		return true, matches[0], strings.TrimPrefix(matches[0], token), matches, ""
 	}
 
 	sort.Strings(matches)
-	return len(matches) > 0, "", "", matches
+	tentative := matches[0]
+	tentativeMatch := true
+	for _, match := range matches[1:] {
+		if !strings.HasPrefix(match, tentative) {
+			tentativeMatch = false
+			break
+		}
+	}
+	if !tentativeMatch {
+		tentative = ""
+	}
+	return len(matches) > 0, "", "", matches, tentative
 }
 
 func processParts(input *CommandArgs) []Part {
@@ -341,13 +352,20 @@ func processParts(input *CommandArgs) []Part {
 
 		if char == "\t" {
 			if len(parts) == 0 {
-				hasMatch, _, rem, options := autoComplete(input, token)
+				hasMatch, _, rem, options, tentative := autoComplete(input, token)
 				//fmt.Println("_", token, "_", hasMatch, options)
 				if hasMatch && len(options) == 1 {
 					fmt.Printf("%v ", rem)
 					token += rem
 					rawCmd += rem + " "
 					char = " "
+				} else if hasMatch && len(tentative) > 0 {
+					rem = strings.Replace(tentative, token, "", -1)
+					fmt.Printf("%v", rem)
+					token += rem
+					rawCmd += rem + " "
+					continue
+
 				} else if hasMatch && doubleTabAutoComplete {
 					fmt.Printf("\n\r")
 					for _, option := range options {
