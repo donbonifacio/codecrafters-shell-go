@@ -295,6 +295,10 @@ func autoComplete(input *CommandArgs, token string) (bool, string, string, []str
 		}
 	}
 
+	if len(matches) == 0 {
+		return false, "", "", matches, ""
+	}
+
 	if len(matches) == 1 {
 		return true, matches[0], strings.TrimPrefix(matches[0], token), matches, ""
 	}
