@@ -233,6 +233,7 @@ type Part struct {
 	Escaped        bool
 	Redirect       bool
 	RedirectId     string
+	AppendRedirect bool
 }
 
 func (p Part) String() string {
@@ -249,6 +250,9 @@ func (p Part) String() string {
 		return fmt.Sprintf("\\(%v)", p.Body)
 	}
 	if p.Redirect {
+		if p.AppendRedirect {
+			return fmt.Sprintf("%v>>(%v)", p.RedirectId, p.Body)
+		}
 		return fmt.Sprintf("%v>(%v)", p.RedirectId, p.Body)
 	}
 	if p.Separator {
@@ -266,10 +270,16 @@ func processParts(raw string) []Part {
 	toEscape := false
 	redirect := false
 	redirectId := "1"
+	appendRedirect := false
 
 	for _, c := range chars {
 		char := string(c)
 		if char == ">" && !in_quotes && !inDoubleQuotes && !toEscape {
+			if redirect {
+				appendRedirect = true
+				token = ""
+				continue
+			}
 			redirect = true
 			if len(token) > 0 {
 				if token[len(token)-1] == '1' || token[len(token)-1] == '2' {
@@ -330,7 +340,7 @@ func processParts(raw string) []Part {
 				token += string(char)
 			} else if redirect && len(strings.TrimSpace(token)) > 0 {
 				redirect = false
-				parts = append(parts, Part{Body: token, Redirect: true, RedirectId: redirectId})
+				parts = append(parts, Part{Body: token, Redirect: true, RedirectId: redirectId, AppendRedirect: appendRedirect})
 			} else {
 				if strings.TrimSpace(token) == "" {
 					var lastPart *Part
@@ -350,7 +360,7 @@ func processParts(raw string) []Part {
 		token += char
 	}
 	if len(token) > 0 {
-		parts = append(parts, Part{Body: token, Redirect: redirect, RedirectId: redirectId})
+		parts = append(parts, Part{Body: token, Redirect: redirect, RedirectId: redirectId, AppendRedirect: appendRedirect})
 	}
 
 	if len(parts) > 0 {
@@ -378,7 +388,13 @@ func buildCommandArgs(raw string, path []string, startingDir string, env map[str
 	newParts := []Part{}
 	for _, part := range input.Parts {
 		if part.Redirect {
-			file, err := os.OpenFile(part.Body, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+			openFileFlag := os.O_WRONLY | os.O_CREATE
+			if part.AppendRedirect {
+				openFileFlag |= os.O_APPEND
+			} else {
+				openFileFlag |= os.O_TRUNC
+			}
+			file, err := os.OpenFile(part.Body, openFileFlag, 0644)
 			if err != nil {
 				panic(err)
 			}
