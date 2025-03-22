@@ -315,6 +315,8 @@ func processParts(input *CommandArgs) []Part {
 					token += rem
 					rawCmd += rem + " "
 					char = " "
+				} else {
+					fmt.Printf("\a")
 				}
 			}
 		}
