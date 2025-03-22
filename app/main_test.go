@@ -105,7 +105,13 @@ func TestEcho(t *testing.T) {
 			defer func() { os.Stdout = oldStdout }()
 			r, w, _ := os.Pipe()
 			os.Stdout = w
-			input := CommandArgs{Raw: testData.input, Parts: processParts(testData.input)}
+			input := CommandArgs{
+				Raw:    testData.input,
+				Stdout: os.Stdout,
+			}
+			rawCmd := testData.input
+			input.Args = strings.Split(rawCmd, " ")
+			input.Parts = processParts(rawCmd)
 			err := echo(&input)
 			// Read output
 			w.Close()

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -22,6 +23,8 @@ type CommandArgs struct {
 	Env         map[string]string
 	Exe         string
 	StartingDir string
+	Stdout      io.Writer
+	Stderr      io.Writer
 }
 
 type Command struct {
@@ -119,11 +122,11 @@ func changeDirectory(input *CommandArgs) error {
 
 func echo(input *CommandArgs) error {
 	if len(input.Parts) <= 1 {
-		fmt.Fprintln(os.Stdout, "")
+		fmt.Fprintln(input.Stdout, "")
 		return nil
 	}
 	for i, part := range input.Parts[1:] {
-		fmt.Fprint(os.Stdout, part.Body)
+		fmt.Fprint(input.Stdout, part.Body)
 
 		if part.Escaped {
 			continue
@@ -138,10 +141,10 @@ func echo(input *CommandArgs) error {
 			nextPart = &input.Parts[i+2]
 		}
 		if nextPart != nil && !nextPart.Escaped && !nextPart.InQuotes && !nextPart.InDoubleQuotes && !nextPart.Separator {
-			fmt.Fprint(os.Stdout, " ")
+			fmt.Fprint(input.Stdout, " ")
 		}
 	}
-	fmt.Fprintln(os.Stdout, "")
+	fmt.Fprintln(input.Stdout, "")
 	return nil
 }
 
@@ -208,8 +211,8 @@ func execute(input *CommandArgs) error {
 	if len(input.Args) > 1 {
 		cmd.Args = buildArgsFromParts(input)
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = input.Stdout
+	cmd.Stderr = input.Stderr
 	if err := cmd.Run(); err != nil {
 		return err
 	}
@@ -228,6 +231,8 @@ type Part struct {
 	InDoubleQuotes bool
 	Separator      bool
 	Escaped        bool
+	Redirect       bool
+	RedirectId     string
 }
 
 func (p Part) String() string {
@@ -243,6 +248,9 @@ func (p Part) String() string {
 	if p.Escaped {
 		return fmt.Sprintf("\\(%v)", p.Body)
 	}
+	if p.Redirect {
+		return fmt.Sprintf("%v>(%v)", p.RedirectId, p.Body)
+	}
 	if p.Separator {
 		return "SEP"
 	}
@@ -256,8 +264,25 @@ func processParts(raw string) []Part {
 	in_quotes := false
 	inDoubleQuotes := false
 	toEscape := false
+	redirect := false
+	redirectId := "1"
+
 	for _, c := range chars {
 		char := string(c)
+		if char == ">" && !in_quotes && !inDoubleQuotes && !toEscape {
+			redirect = true
+			if len(token) > 0 {
+				if token[len(token)-1] == '1' {
+					token = token[:len(token)-1]
+					redirectId = "1"
+				}
+			}
+			if len(token) > 0 {
+				parts = append(parts, Part{Body: token})
+			}
+			token = ""
+			continue
+		}
 		if char == "\\" && !toEscape {
 			toEscape = true
 			continue
@@ -303,6 +328,9 @@ func processParts(raw string) []Part {
 		if char == " " {
 			if in_quotes == true || inDoubleQuotes == true {
 				token += string(char)
+			} else if redirect && len(strings.TrimSpace(token)) > 0 {
+				redirect = false
+				parts = append(parts, Part{Body: token, Redirect: true, RedirectId: redirectId})
 			} else {
 				if strings.TrimSpace(token) == "" {
 					var lastPart *Part
@@ -322,13 +350,47 @@ func processParts(raw string) []Part {
 		token += char
 	}
 	if len(token) > 0 {
-		parts = append(parts, Part{Body: token})
+		parts = append(parts, Part{Body: token, Redirect: redirect, RedirectId: redirectId})
 	}
 
 	if len(parts) > 0 {
 		parts[0].IsCommand = true
 	}
 	return parts
+}
+
+func buildCommandArgs(raw string, path []string, startingDir string, env map[string]string) *CommandArgs {
+	input := CommandArgs{
+		Cmds:        commands,
+		Raw:         raw,
+		Path:        path,
+		StartingDir: startingDir,
+		Env:         env,
+		Stdout:      os.Stdout,
+		Stderr:      os.Stderr,
+	}
+
+	rawCmd := raw
+	input.Args = strings.Split(rawCmd, " ")
+	input.Parts = processParts(rawCmd)
+
+	//fmt.Println(input.Parts)
+	newParts := []Part{}
+	for _, part := range input.Parts {
+		if part.Redirect {
+			file, err := os.OpenFile(part.Body, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+			if err != nil {
+				panic(err)
+			}
+			input.Stdout = file
+		} else {
+			newParts = append(newParts, part)
+		}
+	}
+
+	input.Parts = newParts
+	//fmt.Println(input.Parts)
+	return &input
 }
 
 func main() {
@@ -359,31 +421,22 @@ func main() {
 			continue
 		}
 
-		input := CommandArgs{
-			Cmds:        commands,
-			Raw:         raw,
-			Args:        strings.Split(raw, " "),
-			Parts:       processParts(raw),
-			Path:        path,
-			StartingDir: startingDir,
-			Env:         env,
-		}
+		input := buildCommandArgs(raw, path, startingDir, env)
 
 		cmd := commands[input.Parts[0].Body]
 		if cmd.Fn != nil {
 			input.Cmd = &cmd
-			if err := cmd.Fn(&input); err != nil {
+			if err := cmd.Fn(input); err != nil {
 				panic(err)
 			}
 		} else {
 			// check if it's an executable referenced in the path
-			if err := commands["type"].Fn(&input); err != nil {
+			if err := commands["type"].Fn(input); err != nil {
 				panic(err)
 			}
 			if input.Exe != "" {
-				execute(&input)
+				execute(input)
 			}
 		}
 	}
-
 }
