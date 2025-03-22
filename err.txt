@@ -1,0 +1,1 @@
+ls: asddddd: No such file or directory

@@ -272,9 +272,9 @@ func processParts(raw string) []Part {
 		if char == ">" && !in_quotes && !inDoubleQuotes && !toEscape {
 			redirect = true
 			if len(token) > 0 {
-				if token[len(token)-1] == '1' {
+				if token[len(token)-1] == '1' || token[len(token)-1] == '2' {
+					redirectId = string(token[len(token)-1])
 					token = token[:len(token)-1]
-					redirectId = "1"
 				}
 			}
 			if len(token) > 0 {
@@ -382,14 +382,17 @@ func buildCommandArgs(raw string, path []string, startingDir string, env map[str
 			if err != nil {
 				panic(err)
 			}
-			input.Stdout = file
+			if part.RedirectId == "1" {
+				input.Stdout = file
+			} else {
+				input.Stderr = file
+			}
 		} else {
 			newParts = append(newParts, part)
 		}
 	}
 
 	input.Parts = newParts
-	//fmt.Println(input.Parts)
 	return &input
 }
 
